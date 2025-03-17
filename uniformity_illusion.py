@@ -172,6 +172,7 @@ for trial in range(len(trial_sequence)):
 
 ## last screen
 visual.TextStim(win,'Done!').draw()
+logFile.close()
 win.flip()
 k = ['wait']
 while k[0] not in ['escape', 'space']:
