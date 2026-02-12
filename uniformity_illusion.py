@@ -5,8 +5,8 @@
 Uniformity illusion fMRI paradigm
 Clement Abbatecola
 
-2025/11/11
-    Code version 1.0
+2026/02/12
+    Code version 1.1
 
 Features:
 - 4 conditions:
@@ -61,23 +61,51 @@ while (filename + str(x) + '.txt') in os.listdir(data_path): x += 1
 filename = data_path + filename + str(x) + '.txt'
 
 ## window and elements
-#win = visual.Window([1920,1080], allowGUI=False, monitor = 'vision_coil', units = 'deg', color = bg_col, allowStencil=True, fullscr=True, screen = 1)
-win = visual.Window([1400,900], allowGUI=False, monitor = 'testMonitor', units = 'deg', color = bg_col, allowStencil=True,fullscr=True, screen = 1) # 3T
+win = visual.Window([1920,1080], allowGUI=False, monitor = 'vision_coil', units = 'deg', color = bg_col, allowStencil=True, fullscr=True, screen = 1)
+#win = visual.Window([1400,900], allowGUI=False, monitor = 'testMonitor', units = 'deg', color = bg_col, allowStencil=True,fullscr=True, screen = 1) # 3T
 #win = visual.Window([1000,1000], allowGUI=False, monitor = 'ICE', units = 'deg', allowStencil=True, fullscr=True, screen = 1)
 
 ######
 #### Stimulation, sequences & trials
 ######
 
-mult = 0.6
-cent = [0,-.2]
+mult = 1
+cent = [0,0]
+size = [120,80]
 
-stim = visual.ImageStim(win, image = stim_path + "training_red.bmp", size = [2*mult,2*mult], pos = cent, units = 'norm')
-fix = visual.TextStim(win, '+', pos = cent, units = 'norm')
-loc_images = [visual.GratingStim(win, color =    [1,1,1], sf = 25, tex="sqrXsqr", size = [2*mult,2*mult], pos = cent, units = 'norm'),
-              visual.GratingStim(win, color = [-1,-1,-1], sf = 25, tex="sqrXsqr", size = [2*mult,2*mult], pos = cent, units = 'norm')]
-loc_bg = [visual.ImageStim(win, image = stim_path + "bg.bmp", size = [2*mult,2*mult], pos = [cent[0] + 0, cent[1]-1*mult], units = 'norm'),
-          visual.ImageStim(win, image = stim_path + "bg.bmp", size = [1.3*mult,1.3*mult], pos = cent, units = 'norm')]
+mask_occ = np.array([
+[ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+[ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+[ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+[ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+[ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+[-1,-1, 1, 1, 1, 1, 1, 1, 1, 1],
+[-1,-1, 1, 1, 1, 1, 1, 1, 1, 1],
+[-1,-1, 1, 1, 1, 1, 1, 1, 1, 1],
+[-1,-1,-1,-1,-1, 1, 1, 1, 1, 1],
+[-1,-1,-1,-1,-1, 1, 1, 1, 1, 1]
+])
+
+mask_loc = np.array([
+[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+[ 1,-1,-1,-1,-1,-1,-1,-1,-1, 1],
+[ 1,-1,-1,-1,-1,-1,-1,-1,-1, 1],
+[ 1,-1,-1,-1,-1,-1,-1,-1,-1, 1],
+[ 1, 1, 1, 1,-1,-1, 1, 1, 1, 1]
+])
+
+stim = visual.ImageStim(win, image = stim_path + "training_red.bmp", size = [size[0]*mult, size[1]*mult], pos = cent, units = 'deg', mask = mask_occ)
+fix = visual.TextStim(win, '+', pos = cent, units = 'deg')
+
+loc_images = [visual.GratingStim(win, color =    [1,1,1], sf = 25, tex="sqrXsqr", size = [size[0]*mult, size[1]*mult], pos = cent, units = 'deg', mask = mask_loc),
+              visual.GratingStim(win, color = [-1,-1,-1], sf = 25, tex="sqrXsqr", size = [size[0]*mult, size[1]*mult], pos = cent, units = 'deg', mask = mask_loc)]
+
+
 
 
 ## conditions
@@ -109,7 +137,7 @@ trial_cor = [cond_dict[t] for t in trial_cor]
 ######
 
 ## first screen
-visual.TextStim(win,'During the trials with the illusion, please respond when you perceive the screen as a uniform colour').draw()
+visual.TextStim(win,'During the trials with the illusion, please respond when you perceive the screen as a uniform colour', pos = cent).draw()
 win.flip()
 k = ['wait']
 while k[0] not in ['escape','space']:
@@ -118,7 +146,7 @@ if k[0] in ['escape']:
     win.close()
     core.quit()
 ## wait for trigger
-visual.TextStim(win,'Waiting for trigger...').draw()
+visual.TextStim(win,'Waiting for trigger...', pos = cent).draw()
 win.flip()
 if is_scanner:
     from button_box_threading import buttonBoxThread
@@ -145,7 +173,7 @@ else:
 
 ## prepare loop
 logFile = open(filename,'w')
-logFile.write(''.join(map(str, ["Start:\t" + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M") + "\n"])))
+logFile.write(''.join(map(str, ["Start:\t" + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M") + '\tCentre:' + str(cent) + '\tMult:' + str(mult) + "\n"])))
 logFile.write("Event\tOnset\n")
 print("Start : \t" + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"))
 print("Event\tOnset\t")
@@ -184,7 +212,7 @@ for trial in range(len(trial_sequence)):
     
     if trial_type != 'local':
         stim.image = conditions[trial_type]
-        
+        stim.mask = mask_occ if trial_type == 'illus' else None
         while meta_clock.getTime() < trial_end:
         
             if meta_clock.getTime() < trial_end - this_trial_time + delay:
@@ -223,7 +251,6 @@ for trial in range(len(trial_sequence)):
                 next_tick += tick
                 loc_images[which_loc].draw()
                 which_loc = not which_loc
-                [bg.draw() for bg in loc_bg]
                 fix.draw()
                 win.flip()
         
@@ -255,7 +282,7 @@ if is_scanner:
 
 
 ## last screen
-visual.TextStim(win,'Done!').draw()
+visual.TextStim(win,'Done!', pos = cent).draw()
 logFile.close()
 win.flip()
 k = ['wait']
