@@ -5,8 +5,8 @@
 Uniformity illusion fMRI paradigm
 Clement Abbatecola
 
-2026/02/12
-    Code version 1.1
+2026/03/03
+    Code version 1.2
 
 Features:
 - 4 conditions:
@@ -22,13 +22,15 @@ Features:
 - logfile
 - trigger
 - task (respond when illusion is complete)
-- fade-in and fade-out for training and illusion trials
+- fade-in and fade-out for training and illusion trials + fade-in/out for the patch during illusion
+- get screen field of view info (size, position, scale) from vision coil calibration script
 """
 
 from psychopy import core, visual, gui, event
 import random, datetime, os
 import numpy as np
 from itertools import permutations
+from glob import glob
 
 
 ######
@@ -42,7 +44,7 @@ tick = 1/5  # flickering per sec for loc
 delay = 2 # fading stim time
 bg_col = [-1,-1,-1] # background color
 
-is_scanner = False
+is_scanner = False # button box = yellow and green
 trigger = "s"
 resp_key = '6'
 
@@ -60,6 +62,16 @@ filename =  expInfo['ID'].lower() + '_'
 while (filename + str(x) + '.txt') in os.listdir(data_path): x += 1
 filename = data_path + filename + str(x) + '.txt'
 
+
+## FOV parameters
+
+FOV_file = open(glob(main_path + "/FOV_data/" + expInfo['ID'] + "*.txt")[-1],'r')
+FOV_param = FOV_file.read().split('\t')
+FOV_file.close()
+size = eval(FOV_param[1])
+cent = eval(FOV_param[3])
+mult = eval(FOV_param[5])
+
 ## window and elements
 win = visual.Window([1920,1080], allowGUI=False, monitor = 'vision_coil', units = 'deg', color = bg_col, allowStencil=True, fullscr=True, screen = 1)
 #win = visual.Window([1400,900], allowGUI=False, monitor = 'testMonitor', units = 'deg', color = bg_col, allowStencil=True,fullscr=True, screen = 1) # 3T
@@ -69,9 +81,9 @@ win = visual.Window([1920,1080], allowGUI=False, monitor = 'vision_coil', units 
 #### Stimulation, sequences & trials
 ######
 
-mult = 1
-cent = [0,0]
-size = [120,80]
+#mult = 1
+#cent = [0,0]
+#size = [120,80]
 
 mask_occ = np.array([
 [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -99,7 +111,8 @@ mask_loc = np.array([
 [ 1, 1, 1, 1,-1,-1, 1, 1, 1, 1]
 ])
 
-stim = visual.ImageStim(win, image = stim_path + "training_red.bmp", size = [size[0]*mult, size[1]*mult], pos = cent, units = 'deg', mask = mask_occ)
+stim = visual.ImageStim(win, image = stim_path + "training_red.bmp", size = [size[0]*mult, size[1]*mult], pos = cent, units = 'deg')
+stim_bg = visual.ImageStim(win, image = stim_path + "training_green.bmp", size = [size[0]*mult, size[1]*mult], pos = cent, units = 'deg')
 fix = visual.TextStim(win, '+', pos = cent, units = 'deg')
 
 loc_images = [visual.GratingStim(win, color =    [1,1,1], sf = 25, tex="sqrXsqr", size = [size[0]*mult, size[1]*mult], pos = cent, units = 'deg', mask = mask_loc),
@@ -198,6 +211,7 @@ while meta_clock.getTime() < ITI_end:
 for trial in range(len(trial_sequence)):
 
     ## trial
+    already_responded = False
     trial_type = trial_cor[trial_sequence[trial]]
     print(trial_type, '\t', str(round(meta_clock.getTime(), 3)), '\t', trial + 1)
     logFile.write(trial_type + '\t' + str(round(meta_clock.getTime(), 3)) + '\n')
@@ -212,30 +226,54 @@ for trial in range(len(trial_sequence)):
     
     if trial_type != 'local':
         stim.image = conditions[trial_type]
-        stim.mask = mask_occ if trial_type == 'illus' else None
         while meta_clock.getTime() < trial_end:
-        
-            if meta_clock.getTime() < trial_end - this_trial_time + delay:
-                stim.opacity = (meta_clock.getTime() - (trial_end - this_trial_time)) / delay
-            if meta_clock.getTime() > trial_end - delay:
-                stim.opacity = (trial_end - meta_clock.getTime()) / delay
+            if trial_type == 'illus':
+                stim.mask = mask_occ
+                stim_bg.mask = mask_occ
+                if meta_clock.getTime() < trial_end - this_trial_time + delay:
+                    stim.opacity = 0
+                    stim_bg.opacity = (meta_clock.getTime() - (trial_end - this_trial_time)) / delay
+                elif meta_clock.getTime() < trial_end - this_trial_time + delay * 2:
+                    stim.opacity = (meta_clock.getTime() - (trial_end - this_trial_time + delay)) / delay
+                    stim_bg.opacity = 1 - stim.opacity
+                    
+                if meta_clock.getTime() > trial_end - delay:
+                    stim_bg.opacity = (trial_end - meta_clock.getTime()) / delay
+                    stim.opacity = 0
+                elif meta_clock.getTime() > trial_end - delay * 2:
+                    stim.opacity = (trial_end - delay - meta_clock.getTime()) / delay
+                    stim_bg.opacity = 1 - stim.opacity
+                
+                stim_bg.draw()
+                stim.draw()
+                fix.draw()
+                win.flip()
             
-            stim.draw()
-            fix.draw()
-            win.flip()
+            else:
+                stim.mask = None
+                if meta_clock.getTime() < trial_end - this_trial_time + delay:
+                    stim.opacity = (meta_clock.getTime() - (trial_end - this_trial_time)) / delay
+                if meta_clock.getTime() > trial_end - delay:
+                    stim.opacity = (trial_end - meta_clock.getTime()) / delay
+                
+                stim.draw()
+                fix.draw()
+                win.flip()
             
             
             # responses
-            if is_scanner:
+            if is_scanner and not already_responded:
                 if trial_type == 'illus' and any([button_state[1]==1, button_state[2]==1]):
+                    already_responded = True
                     print('respo', '\t', str(round(meta_clock.getTime(), 2)))
                     logFile.write('respo\t' + str(round(meta_clock.getTime(), 2)) + '\n')
         
             k = event.getKeys([resp_key, 'escape'])
             if k:
-                if trial_type == 'illus' and resp_key in k:
+                if not already_responded and trial_type == 'illus' and resp_key in k:
                     print('respo', '\t', str(round(meta_clock.getTime(), 2)))
                     logFile.write('respo\t' + str(round(meta_clock.getTime(), 2)) + '\n')
+                    already_responded = True
                 if 'escape' in k:
                     abort = True
                 if abort:
