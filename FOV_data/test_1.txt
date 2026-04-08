@@ -1,0 +1,1 @@
+Size:	[120, 80]	Centre:	[0, 0]	Mult:	1
