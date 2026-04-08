@@ -5,8 +5,8 @@
 Uniformity illusion fMRI paradigm
 Clement Abbatecola
 
-2026/03/03
-    Code version 1.2
+2026/04/08
+    Code version 1.3
 
 Features:
 - 4 conditions:
@@ -22,8 +22,9 @@ Features:
 - logfile
 - trigger
 - task (respond when illusion is complete)
-- fade-in and fade-out for training and illusion trials + fade-in/out for the patch during illusion
+- fade-in and fade-out for training and illusion trials
 - get screen field of view info (size, position, scale) from vision coil calibration script
+- patch now an object
 """
 
 from psychopy import core, visual, gui, event
@@ -120,11 +121,72 @@ loc_images = [visual.GratingStim(win, color =    [1,1,1], sf = 25, tex="sqrXsqr"
 
 
 
+def rectangular_raised_cosine_mask(nx, ny, fringe):
+    """
+    True rectangular raised-cosine mask.
+    fringe is fraction of half-size (0–1).
+    """
+    x = np.linspace(-1, 1, nx)
+    y = np.linspace(-1, 1, ny)
+    X, Y = np.meshgrid(x, y)
+
+    ax = 1.0 - fringe
+    ay = 1.0 - fringe
+
+    mask_x = np.ones_like(X)
+    mask_y = np.ones_like(Y)
+
+    ix = np.abs(X) > ax
+    iy = np.abs(Y) > ay
+
+    mask_x[ix] = 0.5 * (
+        1 + np.cos(np.pi * (np.abs(X[ix]) - ax) / fringe)
+    )
+    mask_y[iy] = 0.5 * (
+        1 + np.cos(np.pi * (np.abs(Y[iy]) - ay) / fringe)
+    )
+
+    mask = mask_x * mask_y
+    return mask * 2 - 1  # map [0,1] → [-1,1]
+
+def create_rect_patch(
+    win,
+    size,          # [width, height] in deg
+    color,         # PsychoPy rgb
+    fringe=0.18,
+    tex_res=512
+):
+    tex = np.ones((tex_res, tex_res))
+    mask = rectangular_raised_cosine_mask(tex_res, tex_res, fringe)
+
+    patch = visual.GratingStim(
+        win=win,
+        tex=tex,
+        mask=mask,
+        size=size,
+        color=color,
+        colorSpace='rgb',
+        units='deg'
+    )
+    return patch
+
+red = [ 0.17, -0.09, -0.13 ]
+green = [ -0.09,  0.11, -0.11 ]
+
+patch_w = size[0]*mult / 2
+patch_h = size[1]*mult / 2
+
+patch = create_rect_patch(
+    win,
+    size=[patch_w, patch_h],
+    color=red,
+    fringe=0.18      # tweak to visually match UI.bmp
+)
 
 ## conditions
 conditions = {'tra_R':stim_path + 'training_red.bmp',
               'tra_G':stim_path + 'training_green.bmp',
-              'illus':stim_path + 'UI.bmp'}
+              'illus':stim_path + 'training_green.bmp'}
 
 ## sequences
 trial_sequence = [0,1,2,3, # balanced latin square for the 3 experimental conditions
@@ -223,42 +285,23 @@ for trial in range(len(trial_sequence)):
     trial_end = ITI_end + this_trial_time
     ITI_end = trial_end + ITI + jitter_sequence[trial]
     
-    
+## conditions
+
     if trial_type != 'local':
+        stim.mask = mask_occ if trial_type == 'illus' else None
         stim.image = conditions[trial_type]
+        
         while meta_clock.getTime() < trial_end:
-            if trial_type == 'illus':
-                stim.mask = mask_occ
-                stim_bg.mask = mask_occ
-                if meta_clock.getTime() < trial_end - this_trial_time + delay:
-                    stim.opacity = 0
-                    stim_bg.opacity = (meta_clock.getTime() - (trial_end - this_trial_time)) / delay
-                elif meta_clock.getTime() < trial_end - this_trial_time + delay * 2:
-                    stim.opacity = (meta_clock.getTime() - (trial_end - this_trial_time + delay)) / delay
-                    stim_bg.opacity = 1 - stim.opacity
-                    
-                if meta_clock.getTime() > trial_end - delay:
-                    stim_bg.opacity = (trial_end - meta_clock.getTime()) / delay
-                    stim.opacity = 0
-                elif meta_clock.getTime() > trial_end - delay * 2:
-                    stim.opacity = (trial_end - delay - meta_clock.getTime()) / delay
-                    stim_bg.opacity = 1 - stim.opacity
-                
-                stim_bg.draw()
-                stim.draw()
-                fix.draw()
-                win.flip()
             
-            else:
-                stim.mask = None
-                if meta_clock.getTime() < trial_end - this_trial_time + delay:
-                    stim.opacity = (meta_clock.getTime() - (trial_end - this_trial_time)) / delay
-                if meta_clock.getTime() > trial_end - delay:
-                    stim.opacity = (trial_end - meta_clock.getTime()) / delay
-                
-                stim.draw()
-                fix.draw()
-                win.flip()
+            if meta_clock.getTime() < trial_end - this_trial_time + delay:
+                stim.opacity = (meta_clock.getTime() - (trial_end - this_trial_time)) / delay
+            if meta_clock.getTime() > trial_end - delay:
+                stim.opacity = (trial_end - meta_clock.getTime()) / delay
+            
+            stim.draw()
+            if trial_type == 'illus': patch.draw()
+            fix.draw()
+            win.flip()
             
             
             # responses
@@ -317,7 +360,6 @@ for trial in range(len(trial_sequence)):
 
 if is_scanner:
     button_thread.stop()
-
 
 ## last screen
 visual.TextStim(win,'Done!', pos = cent).draw()

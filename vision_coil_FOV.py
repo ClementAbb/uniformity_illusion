@@ -50,7 +50,7 @@ mult = 1
 cent = [0,0]
 size = [120,80]
 
-stim = visual.GratingStim(win, color =    [1,1,1], sf = 10, tex="sqrXsqr", size = [size[0]*mult, size[1]*mult], pos = cent, units = 'deg')
+stim = visual.GratingStim(win, color =    [1,1,1], sf = 25, tex="sqrXsqr", size = [size[0]*mult, size[1]*mult], pos = cent, units = 'deg')
 fix = visual.TextStim(win, '+', pos = cent, units = 'deg', color = 'red')
 
 ## first screen
